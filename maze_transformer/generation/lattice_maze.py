@@ -156,72 +156,58 @@ class LatticeMaze(SerializableDataclass):
         self,
         c_start: CoordTup,
         c_end: CoordTup,
-    ) -> list[Coord]:
+    ) -> list[CoordTup]:
         """find the shortest path between two coordinates, using A*"""
         c_start = tuple(c_start)
         c_end = tuple(c_end)
 
-        g_score: dict[
-            CoordTup, float
-        ] = dict()  # cost of cheapest path to node from start currently known
-        f_score: dict[CoordTup, float] = {
-            c_start: 0.0
-        }  # estimated total cost of path thru a node: f_score[c] := g_score[c] + heuristic(c, c_end)
+        # cheapest currently known path to node from start
+        g_score: dict[CoordTup, float] = {c_start: 0.0}
+        # estimated total cost of path through a node: f_score[c] = g_score[c] + heuristic(c, c_end)
+        f_score: dict[CoordTup, float] = {c_start: self.heuristic(c_start, c_end)}
 
-        # init
-        g_score[c_start] = 0.0
-        g_score[c_start] = self.heuristic(c_start, c_end)
+        nodes_evaluated: set[CoordTup] = set()
+        nodes_to_evaluate: set[CoordTup] = {c_start}
 
-        closed_vtx: set[CoordTup] = set()  # nodes already evaluated
-        open_vtx: set[CoordTup] = set([c_start])  # nodes to be evaluated
-        source: dict[
-            CoordTup, CoordTup
-        ] = (
-            dict()
-        )  # node immediately preceding each node in the path (currently known shortest path)
+        # node immediately preceding each node in the path (currently known shortest path)
+        source: dict[CoordTup, CoordTup] = dict()
 
-        while open_vtx:
+        while nodes_to_evaluate:
             # get lowest f_score node
-            c_current: CoordTup = min(open_vtx, key=lambda c: f_score[c])
-            # f_current: float = f_score[c_current]
+            current_node: CoordTup = min(nodes_to_evaluate, key=lambda c: f_score[c])
 
             # check if goal is reached
-            if c_end == c_current:
-                path: list[CoordTup] = [c_current]
-                p_current: CoordTup = c_current
-                while p_current in source:
-                    p_current = source[p_current]
-                    path.append(p_current)
+            if current_node == c_end:
+                path: list[CoordTup] = [current_node]
+                path_current: CoordTup = current_node
+                while path_current in source:
+                    path_current = source[path_current]
+                    path.append(path_current)
                 return path[::-1]
 
             # close current node
-            closed_vtx.add(c_current)
-            open_vtx.remove(c_current)
+            nodes_evaluated.add(current_node)
+            nodes_to_evaluate.remove(current_node)
 
-            # update g_score of neighbors
-            _np_neighbor: Coord
-            for _np_neighbor in self.get_coord_neighbors(c_current):
-                neighbor: CoordTup = tuple(_np_neighbor)
-
-                if neighbor in closed_vtx:
-                    # already checked
+            neighbor: CoordTup
+            for neighbor in map(tuple, self.get_coord_neighbors(current_node)):
+                if neighbor in nodes_evaluated:
                     continue
-                g_temp: float = g_score[c_current] + 1  # always 1 for maze neighbors
 
-                if neighbor not in open_vtx:
-                    # found new vtx, so add
-                    open_vtx.add(neighbor)
+                neighbor_g_score: float = g_score[current_node] + 1
 
-                elif g_temp >= g_score[neighbor]:
+                if neighbor not in nodes_to_evaluate:
+                    nodes_to_evaluate.add(neighbor)
+                elif neighbor_g_score >= g_score[neighbor]:
                     # if already knew about this one, but current g_score is worse, skip
                     continue
 
                 # store g_score and source
-                source[neighbor] = c_current
-                g_score[neighbor] = g_temp
+                source[neighbor] = current_node
+                g_score[neighbor] = neighbor_g_score
                 f_score[neighbor] = g_score[neighbor] + self.heuristic(neighbor, c_end)
 
-    def get_nodes(self) -> list[Coord]:
+    def get_nodes(self) -> list[CoordTup]:
         """return a list of all nodes in the maze"""
 
         return [
@@ -230,7 +216,7 @@ class LatticeMaze(SerializableDataclass):
             for col in range(self.grid_shape[1])
         ]
 
-    def generate_random_path(self) -> list[Coord]:
+    def generate_random_path(self) -> list[CoordTup]:
         """ "return a path between randomly chosen start and end nodes"""
 
         # we can't create a "path" in a single-node maze
